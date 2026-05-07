@@ -181,9 +181,8 @@ Applications supporting streaming should work automatically.
 
 Tested with:
 
-- custom Ollama clients
-- CLI tools
-- Ollama-compatible applications
+- some ollama clients I tried
+- flawa, the reason I built it
 
 More compatibility testing planned.
 
