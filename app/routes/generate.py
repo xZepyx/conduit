@@ -1,75 +1,54 @@
 import json
 
 from fastapi import APIRouter
-from fastapi.responses import JSONResponse
-from fastapi.responses import StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 
-from app.providers.openrouter import stream_chat_completion
-from app.providers.openrouter import chat_completion
+from app.models.schemas import GenerateRequest
+from app.providers.factory import get_provider, get_model_name
 
 
 router = APIRouter()
 
 
 @router.post("/api/generate")
-async def generate(data: dict):
+async def generate(data: GenerateRequest):
+    provider = get_provider(data.model)
+    actual_model = get_model_name(data.model)
 
-    prompt = data.get("prompt", "")
-    model = data.get("model", "llama3")
-    stream = data.get("stream", False)
+    messages = [{"role": "user", "content": data.prompt}]
 
-    messages = [
-        {
-            "role": "user",
-            "content": prompt
-        }
-    ]
-
-    # NON-STREAM MODE
-    if not stream:
-
-        result = await chat_completion(
-            model=model,
-            messages=messages
-        )
-
-        content = result["choices"][0]["message"]["content"]
-
-        return JSONResponse({
-            "model": model,
-            "response": content,
-            "done": True
-        })
-
-    # STREAM MODE
-    async def generator():
-
-        async for chunk in stream_chat_completion(model, messages):
-
-            parsed = json.loads(chunk)
-
-            if parsed.get("done"):
-
-                yield json.dumps({
-                    "model": model,
-                    "response": "",
-                    "done": True
-                }) + "\n"
-
-                continue
-
-            content = (
-                parsed.get("message", {})
-                .get("content", "")
+    if not data.stream:
+        try:
+            content = await provider.chat(actual_model, messages)
+            return JSONResponse({
+                "model": data.model,
+                "response": content,
+                "done": True,
+            })
+        except Exception as e:
+            return JSONResponse(
+                {"error": str(e), "done": True},
+                status_code=400,
             )
 
-            yield json.dumps({
-                "model": model,
-                "response": content,
-                "done": False
-            }) + "\n"
+    async def event_stream():
+        try:
+            async for chunk in provider.stream_chat(actual_model, messages):
+                if "error" in chunk:
+                    yield json.dumps({"error": chunk["error"]}) + "\n"
+                elif "done" in chunk:
+                    yield json.dumps({"model": data.model, "response": "", "done": True}) + "\n"
+                else:
+                    yield json.dumps({
+                        "model": data.model,
+                        "response": chunk["content"],
+                        "done": False,
+                    }) + "\n"
+        except Exception as e:
+            yield json.dumps({"error": str(e)}) + "\n"
+            yield json.dumps({"done": True}) + "\n"
 
     return StreamingResponse(
-        generator(),
-        media_type="application/x-ndjson"
+        event_stream(),
+        media_type="application/x-ndjson",
     )
