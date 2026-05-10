@@ -25,7 +25,7 @@ MODEL_MAP = {
     "gemini-2.5-flash": ("gemini", "gemini-2.5-flash"),
     "gemini-2.0-flash": ("gemini", "gemini-2.0-flash"),
     # Groq
-    "llama3-70b": ("groq", "llama3-70b-8192"),
+    "llama3-70b": ("groq", "llama-3.3-70b-versatile"),
     "llama3-8b": ("groq", "llama3-8b-8192"),
     "mixtral": ("groq", "mixtral-8x7b-32768"),
     "gemma2": ("groq", "gemma2-9b-it"),
